@@ -1,8 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:firebase_storage/firebase_storage.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'app.dart';
 import 'features/auth/auth_repository.dart';
@@ -10,12 +9,22 @@ import 'features/auth/auth_repository.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   var ready = false;
+  FirebaseApp? configuredApp;
   const emulator = bool.fromEnvironment('USE_EMULATORS');
+  final nativeAndroid =
+      !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
   try {
     const apiKey = String.fromEnvironment('FIREBASE_API_KEY');
-    if (apiKey.isNotEmpty || emulator) {
-      await Firebase.initializeApp(
-        options: emulator
+    if (apiKey.isNotEmpty || emulator || nativeAndroid) {
+      configuredApp = await Firebase.initializeApp(
+        name: emulator
+            ? 'yourvel-emulators'
+            : apiKey.isNotEmpty
+            ? 'yourvel-configured'
+            : null,
+        options: !emulator && apiKey.isEmpty
+            ? null
+            : emulator
             ? const FirebaseOptions(
                 apiKey: 'demo-yourvel-key',
                 appId: '1:123456789:web:yourvel',
@@ -37,30 +46,37 @@ Future<void> main() async {
                 authDomain: String.fromEnvironment('FIREBASE_AUTH_DOMAIN'),
               ),
       );
-      FirebaseFirestore.instance.settings = const Settings(
-        persistenceEnabled: false,
-      );
+      final auth = FirebaseAuth.instanceFor(app: configuredApp);
+      final database = FirebaseFirestore.instanceFor(app: configuredApp);
+      database.settings = const Settings(persistenceEnabled: false);
       if (emulator) {
         const host = String.fromEnvironment(
           'EMULATOR_HOST',
           defaultValue: '127.0.0.1',
         );
-        await FirebaseAuth.instance.useAuthEmulator(host, 9099);
-        FirebaseFirestore.instance.useFirestoreEmulator(host, 8080);
-        await FirebaseStorage.instance.useStorageEmulator(host, 9199);
-        FirebaseFunctions.instance.useFunctionsEmulator(host, 5001);
+        await auth.useAuthEmulator(host, 9099);
+        database.useFirestoreEmulator(host, 8080);
       }
       ready = true;
     }
-  } catch (_) {
-    // Não expor configuração ou detalhes internos na interface.
+  } catch (error) {
+    if (kDebugMode) {
+      // Registrar apenas código/tipo, sem valores de configuração ou tokens.
+      debugPrint(
+        error is FirebaseException
+            ? 'Inicialização Firebase: ${error.plugin}/${error.code}'
+            : 'Inicialização Firebase: ${error.runtimeType}',
+      );
+    }
   }
   runApp(
     YourvelApp(
-      auth: ready ? AuthRepository(FirebaseAuth.instance) : null,
-      database: ready ? FirebaseFirestore.instance : null,
-      storage: ready ? FirebaseStorage.instance : null,
-      functions: ready ? FirebaseFunctions.instance : null,
+      auth: ready
+          ? AuthRepository(FirebaseAuth.instanceFor(app: configuredApp!))
+          : null,
+      database: ready
+          ? FirebaseFirestore.instanceFor(app: configuredApp!)
+          : null,
     ),
   );
 }

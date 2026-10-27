@@ -4,6 +4,12 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+// Permite executar o Android com a configuração nativa do Firebase.
+// Sem o arquivo local, o projeto ainda pode usar os emuladores por dart-define.
+if (file("google-services.json").exists()) {
+    apply(plugin = "com.google.gms.google-services")
+}
+
 android {
     namespace = "br.com.mundoafora.yourvel"
     compileSdk = flutter.compileSdkVersion

@@ -2,9 +2,9 @@ const { spawn, spawnSync } = require('node:child_process');
 const testing = process.argv[2] === 'test';
 const browser = process.argv[2] === 'browser';
 const args = [testing || browser ? 'emulators:exec' : 'emulators:start', '--project', 'demo-yourvel'];
-if (testing) args.push('--only', 'auth,firestore,storage,functions',
-  'node --test --test-concurrency=1 --test-timeout=240000 --test-force-exit test/firebase_rules.test.cjs');
-if (browser) args.push('--only', 'auth,firestore,storage,functions', 'node test/browser_smoke.cjs');
+if (testing) args.push('--only', 'auth,firestore',
+  'node --test --test-concurrency=1 --test-timeout=240000 --test-force-exit test/local_firestore_rules.test.cjs');
+if (browser) args.push('--only', 'auth,firestore', 'node test/browser_smoke.cjs');
 const child = spawn(process.execPath, [require.resolve('firebase-tools/lib/bin/firebase.js'), ...args], {
   stdio: 'inherit',
   env: { ...process.env, FUNCTIONS_DISCOVERY_TIMEOUT: process.env.FUNCTIONS_DISCOVERY_TIMEOUT || '120' },

@@ -6,9 +6,8 @@
   },
   "scripts": {
     "emulators": "node scripts/firebase.cjs start",
-    "test": "node --test test/backend_validation.test.cjs",
+    "test": "npm run test:rules",
     "test:rules": "node scripts/firebase.cjs test",
-    "test:browser": "node scripts/firebase.cjs browser",
     "serve:web": "node scripts/serve-web.cjs"
   },
   "devDependencies": {

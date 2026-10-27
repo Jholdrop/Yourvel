@@ -51,7 +51,7 @@ class _EntryFormPageState extends State<EntryFormPage> {
                 title: const Text('Descartar esta memória?'),
                 content: Text(
                   _lockedAfterAttempt
-                      ? 'A foto enviada e qualquer registro confirmado desta tentativa serão removidos. Seus campos serão descartados.'
+                      ? 'A cópia local da foto e qualquer registro confirmado desta tentativa serão removidos. Seus campos serão descartados.'
                       : 'Os campos preenchidos e a foto selecionada serão descartados.',
                 ),
                 actions: [
@@ -81,7 +81,7 @@ class _EntryFormPageState extends State<EntryFormPage> {
           setState(() {
             _saving = false;
             _error =
-                'Não foi possível descartar o envio. Verifique sua conexão e tente novamente.';
+                'Não foi possível descartar a memória. Verifique sua conexão e tente novamente.';
           });
         }
         _confirmingExit = false;
@@ -356,7 +356,9 @@ class _EntryFormPageState extends State<EntryFormPage> {
                         : 'Trocar foto',
                   ),
                 ),
-                const Text('Uma foto JPEG ou PNG, até 5 MiB.'),
+                const Text(
+                  'Uma foto JPEG ou PNG, até 5 MiB. A foto fica apenas neste dispositivo.',
+                ),
                 if (_error != null)
                   Padding(
                     padding: const EdgeInsets.symmetric(vertical: 16),
@@ -371,7 +373,7 @@ class _EntryFormPageState extends State<EntryFormPage> {
                   const Padding(
                     padding: EdgeInsets.only(top: 12),
                     child: Text(
-                      'Os campos foram preservados para repetir o mesmo envio com segurança.',
+                      'Os campos foram preservados para repetir o salvamento com segurança.',
                     ),
                   ),
                 if (_saving) ...[
@@ -381,7 +383,7 @@ class _EntryFormPageState extends State<EntryFormPage> {
                   Text(
                     _progress == null
                         ? 'Salvando registro…'
-                        : 'Enviando foto: ${(_progress! * 100).round()}%',
+                        : 'Guardando foto no dispositivo…',
                   ),
                   const Text('Aguarde a conclusão antes de sair.'),
                 ],

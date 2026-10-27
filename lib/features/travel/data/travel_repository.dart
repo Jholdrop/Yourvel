@@ -1,17 +1,14 @@
-import 'dart:async';
 import 'dart:typed_data';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:cloud_functions/cloud_functions.dart';
-import 'package:firebase_storage/firebase_storage.dart';
+import 'local_photos.dart';
 import '../../../core/errors.dart';
 import '../../../core/validation.dart';
 import '../domain/models.dart';
 
 class TravelRepository {
-  TravelRepository(this._db, this._storage, this._functions, this.uid);
+  TravelRepository(this._db, this.uid) : _photos = LocalPhotos(uid);
   final FirebaseFirestore _db;
-  final FirebaseStorage _storage;
-  final FirebaseFunctions _functions;
+  final LocalPhotos _photos;
   final String uid;
   CollectionReference<Map<String, dynamic>> get _entries =>
       _db.collection('users').doc(uid).collection('travel_entries');
@@ -20,7 +17,7 @@ class TravelRepository {
       .orderBy('createdAt', descending: true)
       .snapshots()
       .map((snapshot) => snapshot.docs.map(TravelEntry.fromDocument).toList());
-  Future<Uint8List?> image(String path) => _storage.ref(path).getData(5242880);
+  Future<Uint8List?> image(String path) => _photos.read(path);
 
   static String imageType(Uint8List bytes) {
     if (bytes.length > 5242880) {
@@ -56,71 +53,32 @@ class TravelRepository {
         place.longitude.abs() > 180) {
       throw const AppException('Selecione uma localização válida.');
     }
-    final type = imageType(bytes);
-    // Um ID estável permite verificar uma gravação cuja resposta foi perdida.
+    imageType(bytes);
     final doc = _entries.doc(id);
     if ((await doc.get(const GetOptions(source: Source.server))).exists) return;
-    final ref = _storage.ref('users/$uid/travel_entries/$id/photo');
-    StreamSubscription<TaskSnapshot>? subscription;
-    try {
-      // Reutilizar o objeto de uma tentativa anterior, sem sobrescrever fotos.
-      try {
-        await ref.getMetadata();
-      } on FirebaseException catch (error) {
-        if (error.code != 'object-not-found') rethrow;
-        final task = ref.putData(bytes, SettableMetadata(contentType: type));
-        subscription = task.snapshotEvents.listen((event) {
-          progress(
-            event.totalBytes == 0
-                ? 0
-                : event.bytesTransferred / event.totalBytes,
-          );
-        }, onError: (Object _) {});
-        await task;
-      }
-      progress(null);
-      await _functions
-          .httpsCallable(
-            'finalizeEntry',
-            options: HttpsCallableOptions(
-              timeout: const Duration(seconds: 120),
-            ),
-          )
-          .call({
-            'id': id,
-            'placeName': name.trim(),
-            'memory': memory.trim(),
-            'latitude': place.latitude,
-            'longitude': place.longitude,
-            'locationSource': place.source,
-            'placeProvider': place.provider,
-          });
-    } catch (_) {
-      // Nunca remover a foto quando a confirmação do Firestore é incerta.
-      try {
-        final saved = await doc.get(const GetOptions(source: Source.server));
-        if (saved.exists) return;
-      } catch (_) {
-        throw const AppException(
-          'Não foi possível confirmar o envio. Tente novamente sem fechar este formulário.',
-        );
-      }
-      rethrow;
-    } finally {
-      await subscription?.cancel();
-    }
+    final path = _photos.pathFor(id);
+    progress(0);
+    await _photos.save(path, bytes);
+    progress(null);
+    // Create-only pelas regras. Em resposta incerta, consultar o mesmo ID
+    // antes de repetir; preservar a foto ate confirmacao ou descarte.
+    await doc.set({
+      'placeName': name.trim(),
+      'memory': memory.trim(),
+      'imagePath': path,
+      'imageStorage': 'local',
+      'coordinates': GeoPoint(place.latitude, place.longitude),
+      'locationSource': place.source,
+      'placeProvider': place.provider,
+      'createdAt': FieldValue.serverTimestamp(),
+    });
   }
 
-  Future<void> delete(TravelEntry entry) async {
-    await discard(entry.id);
-  }
+  Future<void> delete(TravelEntry entry) => discard(entry.id);
 
   Future<void> discard(String id) async {
-    await _functions
-        .httpsCallable(
-          'deleteEntry',
-          options: HttpsCallableOptions(timeout: const Duration(seconds: 120)),
-        )
-        .call({'id': id});
+    // Confirmar a exclusao remota antes de remover a copia local.
+    await _entries.doc(id).delete();
+    await _photos.remove(_photos.pathFor(id));
   }
 }

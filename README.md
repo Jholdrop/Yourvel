@@ -1,211 +1,109 @@
-# Yourvel — Diário de viagens
+﻿# Yourvel — diário de viagens
 
-Aplicativo Flutter do cenário **WanderLog**, para a agência fictícia **Mundo Afora**. Cada usuário tem um diário com fotos pessoais, memórias e coordenadas geográficas.
+Aplicativo Flutter Android com login Firebase, diário em tempo real no Cloud Firestore, busca de cidades e fotos guardadas **no próprio dispositivo**.
 
-O projeto contém aplicação Android/web, autenticação Firebase, Firestore em tempo real, Storage, funções de backend, regras de segurança e testes. A configuração de produção deve apontar para o seu projeto Firebase. É possível executar localmente com os emuladores, sem provisionar serviços pagos.
+## Protótipo
+
+[Acessar a prototipagem do Yourvel no Google Stitch](https://stitch.google.com/projects/18044630015424928556).
+
+## Alteração de escopo aprovada pelo professor
+
+A foto não é enviada ao Firebase Storage. Ela é copiada da galeria para uma pasta privada permanente do aplicativo, obtida com `getApplicationSupportDirectory` do [path_provider](https://pub.dev/packages/path_provider). O Firestore recebe apenas o caminho relativo, os textos, as coordenadas e a data.
+
+- Fotos disponíveis somente no dispositivo onde foram salvas.
+- Limpar os dados ou desinstalar o aplicativo pode apagar as fotos. O Firestore não contém cópia delas.
+- Em outro aparelho, o diário pode exibir os textos e a mensagem “Foto indisponível neste dispositivo”.
+- Logout mantém as fotos locais para o próximo login da mesma conta; caminhos são separados por usuário.
+- A implementação atual de fotos requer Android. O navegador não acessa o armazenamento privado do Android.
+- Firebase Storage, Cloud Functions e plano Blaze não são necessários para o fluxo atual.
 
 ## Funcionalidades
 
-- Cadastro com confirmação de senha, login, recuperação de senha e logout.
-- Sessão persistida e navegação privada por usuário.
-- Diário atualizado em tempo real, estado vazio e detalhes de cada memória.
-- Busca de cidades por API externa Open-Meteo/GeoNames, sem chave para uso não comercial.
-- Localização atual mediante permissão, como alternativa à busca.
-- Seleção da galeria, prévia, JPEG/PNG de até 5 MiB e progresso de upload.
-- Nome personalizado, memória e coordenadas persistidas como `GeoPoint`.
-- Repetição do mesmo envio sem duplicar registros.
-- Exclusão com confirmação e descarte de envio incompleto.
-- Fotos lidas pelo SDK autenticado, sem expor links públicos na interface.
+Cadastro, login, recuperação de senha, listagem em tempo real, criação e exclusão de lembranças, seleção de foto JPEG/PNG até 5 MiB, busca de cidades Open-Meteo/GeoNames e coordenadas atuais opcionais.
 
-## Requisitos de ambiente
+## Executar no Android / BlueStacks
 
-- Flutter estável com Dart ≥ 3.8; ambiente utilizado: Flutter 3.44.8 / Dart 3.12.2.
-- Chrome para web; Android SDK e Java 21 para Android e emuladores Firebase.
-- Node.js 22 para o backend (o emulador também pode executar com a versão local, exibindo aviso se diferente).
-- npm para instalar as ferramentas de teste e Firebase CLI local.
+Requisitos: Flutter, Android SDK, Java 21 e um projeto Firebase com Authentication por email/senha e Cloud Firestore habilitados.
 
-As versões resolvidas do Flutter ficam em `pubspec.lock`; as do backend nos arquivos `package-lock.json`. Não é necessário instalar ferramentas globalmente: os comandos `npm run` usam a CLI local.
-
-## Executar localmente, sem projeto Firebase real
-
-Na raiz do repositório, instale as dependências:
+1. Registre o pacote Android `br.com.mundoafora.yourvel` no Firebase.
+2. Coloque o arquivo de configuração em `android/app/google-services.json` (não versionado).
+3. Execute `flutter pub get`.
+4. Publique as regras com os comandos abaixo, autenticado na conta responsável pelo projeto.
+5. Inicie o BlueStacks com ADB habilitado; confirme a conexão com `adb devices`.
+6. Selecione **Yourvel BlueStacks (Firebase real)** no VS Code ou execute:
 
 ```powershell
-flutter pub get
-npm install
-npm install --prefix functions
+flutter run -d 127.0.0.1:5555
 ```
 
-Em um terminal, mantenha os emuladores abertos:
+O endereço ADB pode variar. Após alterar a configuração Firebase ou os plugins, faça uma execução completa; hot reload não basta.
+
+### Publicar regras
+
+```powershell
+npm install
+npx firebase login
+npx firebase deploy --only firestore:rules --project SEU_PROJECT_ID
+```
+
+O projeto local está associado a `yourvel-b5a34` em `.firebaserc`. A configuração pública do cliente não substitui as regras. Não publique tokens nem contas de serviço.
+
+## Modelagem e segurança
+
+Coleção `users/{uid}/travel_entries/{id}`:
+
+| Campo | Tipo / finalidade |
+| --- | --- |
+| `placeName` | Texto, 1–100 caracteres |
+| `memory` | Texto, 1–1000 caracteres |
+| `imagePath` | Caminho relativo `users/{uid}/travel_entries/{id}/photo` |
+| `imageStorage` | Valor `local` |
+| `coordinates` | Firestore GeoPoint |
+| `locationSource` | `places` ou `device` |
+| `placeProvider` | `open-meteo` ou `device` |
+| `createdAt` | Timestamp gerado pelo servidor |
+
+O app resolve `imagePath` dentro da pasta privada local. Regras validam campos, tipos, tamanho, caminho do dono e timestamp; usuários só podem ler, criar e excluir seus próprios documentos. Atualizações são bloqueadas. O Firestore não consegue verificar se o arquivo existe no aparelho.
+
+Ao salvar: validar → copiar foto localmente → gravar documento. Tentativas reutilizam o mesmo ID e preservam os campos em caso de falha. Ao excluir: confirmar exclusão no Firestore → remover foto local. Uma falha entre serviços pode deixar uma foto local órfã; o descarte pode ser repetido. Não existe transação atômica entre arquivos locais e Firestore.
+
+## Testes e build
+
+```powershell
+flutter analyze
+flutter test
+npm install
+npm run test:rules
+flutter build apk --debug
+```
+
+`npm run test:rules` usa Java 21 e emuladores locais; não altera o projeto real. Testa isolamento de usuários, criação, leitura, exclusão e rejeição de payloads inválidos. Testes Flutter cobrem interface, validações e persistência/proteção dos caminhos locais.
+
+APK: `build/app/outputs/flutter-apk/app-debug.apk`. Para loja, configurar assinatura de produção.
+
+Para desenvolvimento sem Firebase real, use dois terminais:
 
 ```powershell
 npm run emulators
 ```
 
-Em outro terminal, execute no navegador:
-
-```powershell
-flutter run -d chrome --web-port=7357 --dart-define=USE_EMULATORS=true
-```
-
-Crie uma conta pela tela de cadastro e registre sua primeira memória. O painel dos emuladores fica em `http://127.0.0.1:4000`. Emails de recuperação são simulados: o link aparece no terminal do emulador de Auth.
-
-Para emulador Android, inicie um dispositivo e execute:
-
 ```powershell
 flutter run --dart-define=USE_EMULATORS=true --dart-define=EMULATOR_HOST=10.0.2.2
 ```
 
-Os emuladores Firebase usam o projeto **demo-yourvel**, isolado de produção. Por padrão, seus dados são temporários. Para preservá-los entre sessões:
-
-```powershell
-npx firebase emulators:start --project demo-yourvel --export-on-exit=.emulator-data
-# Nas execuções seguintes:
-npx firebase emulators:start --project demo-yourvel --import=.emulator-data --export-on-exit=.emulator-data
-```
-
-O VS Code também tem configurações de execução em `.vscode/launch.json`. Execute primeiro os emuladores. No dispositivo físico, usar Firebase em produção é a opção mais simples; o acesso aos emuladores pela rede exige configurar hosts, firewall e conectividade do computador.
-
-## Configurar Firebase real
-
-1. Crie ou selecione seu projeto no console Firebase.
-2. Em Authentication, habilite **Email/Senha**. Configure os domínios autorizados usados na web, incluindo `localhost` no desenvolvimento.
-3. Crie o banco Cloud Firestore e o bucket Storage. Verifique os requisitos atuais de faturamento; Cloud Functions e Storage podem exigir o plano Blaze.
-4. Registre os aplicativos web e Android (pacote `br.com.mundoafora.yourvel`) que deseja utilizar. Use a configuração pública correspondente à plataforma executada, inclusive o `appId` do aplicativo Android ao rodar no celular. O app inicializa Firebase explicitamente por `FirebaseOptions`; não há credenciais administrativas no cliente.
-5. Copie o arquivo de exemplo e preencha os valores com a configuração do console:
-
-```powershell
-Copy-Item config/firebase.example.json config/firebase.json
-```
-
-```json
-{
-  "FIREBASE_API_KEY": "chave-publica-do-cliente",
-  "FIREBASE_APP_ID": "1:123456789:web:identificador",
-  "FIREBASE_MESSAGING_SENDER_ID": "123456789",
-  "FIREBASE_PROJECT_ID": "seu-projeto",
-  "FIREBASE_STORAGE_BUCKET": "bucket-exato-do-console.firebasestorage.app",
-  "FIREBASE_AUTH_DOMAIN": "seu-projeto.firebaseapp.com"
-}
-```
-
-O bucket pode terminar em `.appspot.com` ou `.firebasestorage.app`; copie o nome real. O backend usa o bucket padrão do mesmo projeto, que deve corresponder à configuração do cliente.
-
-6. Publique backend e regras usando sua conta autorizada:
-
-```powershell
-npx firebase login
-npx firebase deploy --project SEU_PROJECT_ID --only "firestore,storage,functions"
-```
-
-As funções são `finalizeEntry` e `deleteEntry`, em `us-central1`. O Admin SDK usa a identidade do ambiente Firebase; nenhuma chave de conta de serviço precisa estar no app ou repositório.
-
-7. Para ler os bytes das fotos na web, configure CORS no bucket com os domínios efetivamente utilizados. Há exemplo restrito a desenvolvimento em `config/storage.cors.json`. Com Google Cloud CLI autenticada:
-
-```powershell
-gcloud storage buckets update gs://SEU_BUCKET --cors-file=config/storage.cors.json
-```
-
-Adicione a origem HTTPS do seu site ao JSON antes de usar em produção. CORS não substitui autorização.
-
-8. Execute:
-
-```powershell
-flutter run -d chrome --web-port=7357 --dart-define-from-file=config/firebase.json
-# Android:
-flutter run --dart-define-from-file=config/firebase.json
-```
-
-Sem configuração válida, o aplicativo apresenta uma tela de orientação; não simula login ou persistência.
-
-## Segurança e modelo de dados
-
-Documentos: `users/{uid}/travel_entries/{entryId}`. Fotos: `users/{uid}/travel_entries/{entryId}/photo`.
-
-1. O usuário autenticado envia a foto para seu caminho no Storage.
-2. `finalizeEntry` verifica identidade, campos, coordenadas, existência, MIME e tamanho do arquivo.
-3. A função remove o token de download público e armazena uma URL de mídia **sem token**, que exige autenticação. Não é um link público para compartilhar.
-4. A função grava o documento com `ownerId`, textos, `imageUrl`, `imagePath`, `GeoPoint`, origem da localização e timestamps de servidor.
-5. A interface recebe o documento pelo stream e carrega a foto com `getData()` autenticado.
-
-As regras negam acesso anônimo, acesso de outros usuários, alteração de fotos e gravações diretas no Firestore. O backend deriva os caminhos do UID autenticado, sem aceitar `ownerId` fornecido pelo cliente. Cache persistente do Firestore está desativado e o cache de imagens é limpo ao sair.
-
-Storage e Firestore não têm transação conjunta. O ID estável permite repetir a finalização se houver perda da resposta. O formulário preserva os campos e oferece descarte autenticado, que remove foto e documento. Fechar o processo à força após upload pode deixar um objeto órfão privado; limpeza periódica automática não faz parte desta versão.
-
-## Testes e builds
-
-```powershell
-dart format --output=none --set-exit-if-changed lib test
-flutter analyze
-flutter test
-npm test
-npm run test:rules
-# Teste completo pela interface (Chrome instalado e build web em modo emulador):
-npm run test:browser
-```
-
-`test:rules` inicia e encerra emuladores automaticamente. Não execute outra instância nas mesmas portas. A suíte verifica acesso cruzado, autenticação, restrições de arquivo, validação das funções, criação de conta, upload, GeoPoint, repetição do salvamento, remoção de tokens e exclusão.
-
-`test:browser` usa Chrome instalado via Playwright, inicia os emuladores e um servidor local e percorre cadastro → busca → foto → salvamento → detalhes → exclusão → logout. A resposta da busca é controlada nesse teste para evitar instabilidade externa; o adaptador real é verificado separadamente. Capturas ficam em `build/screenshots`.
-
-```powershell
-# Web de demonstração local; requer emuladores em execução:
-flutter build web --dart-define=USE_EMULATORS=true
-# Servir o build local mantendo os emuladores em outro terminal:
-npm run serve:web
-# Web e APK conectados ao projeto real:
-flutter build web --dart-define-from-file=config/firebase.json
-flutter build apk --debug --dart-define-from-file=config/firebase.json
-```
-
-Saídas: `build/web` e `build/app/outputs/flutter-apk/app-debug.apk`. Para publicar em loja, configure assinatura própria de produção; o template Android ainda usa assinatura de desenvolvimento.
+O host acima corresponde ao emulador Android padrão. No BlueStacks, a conectividade com o host depende da configuração de rede.
 
 ## Organização
 
-```text
-lib/
-  app.dart                    # Tema e navegação de sessão
-  main.dart                   # Firebase e seleção de ambiente
-  core/                       # Validações e mensagens
-  features/auth/              # Autenticação e telas
-  features/travel/
-    domain/                   # Entidades
-    data/                     # Firebase, API e localização
-    presentation/             # Diário, formulário e detalhes
-functions/                    # Finalização e exclusão autenticadas
-test/                         # Flutter, validações Node e emuladores
-docs/                         # Requisitos e decisões
-```
+- `lib/features/auth`: autenticação e telas.
+- `lib/features/travel/domain`: entidades.
+- `lib/features/travel/data`: Firestore, fotos locais, API e localização.
+- `lib/features/travel/presentation`: diário, formulário e detalhes.
+- `firestore.rules`: autorização e validação.
+- `test/local_photos_test.dart`: arquivos locais.
+- `test/local_firestore_rules.test.cjs`: regras atuais.
+- `docs/07-fotos-locais.md`: mudança de escopo e critérios de aceite.
 
-## Documentação e limites
+Os documentos 01–06, a pasta `functions/`, `storage.rules` e os testes `backend_validation.test.cjs`, `firebase_rules.test.cjs` e `browser_smoke.cjs` registram a versão anterior com Storage. Não fazem parte do fluxo atual nem comprovam validação da versão com fotos locais. A configuração Firebase atual não publica Functions nem Storage.
 
-| Documento | Conteúdo |
-| --- | --- |
-| [Visão e escopo](docs/01-visao-e-escopo.md) | Problema, público e limites |
-| [Requisitos](docs/02-requisitos.md) | Requisitos e regras de negócio |
-| [Fluxos e aceite](docs/03-fluxos-e-aceite.md) | Jornadas e cenários |
-| [Arquitetura planejada](docs/04-arquitetura-dados-seguranca.md) | Proposta original, com decisões atualizadas no documento abaixo |
-| [Planejamento](docs/05-plano-e-validacao.md) | Marcos e avaliação |
-| [Implementação e validação](docs/06-implementacao.md) | Decisões efetivas, evidências e pendências externas |
-
-A busca retorna cidades e suas coordenadas centrais, não pontos turísticos. O nome do lugar pode ser personalizado e a posição atual oferece coordenadas do local da visita. Não há edição, múltiplas fotos, compartilhamento público, gravação offline ou suporte iOS nesta entrega.
-
-O serviço gratuito do Open-Meteo destina-se a uso não comercial. Para operação comercial da agência, contratar plano compatível ou substituir o adaptador. Resultados geográficos usam dados GeoNames, com atribuição CC BY 4.0.
-
-## Entregar no GitHub
-
-O repositório Git local foi inicializado. Depois de revisar o código e criar um repositório vazio na sua conta:
-
-```powershell
-git add .
-git commit -m "feat: implementar diario de viagens com Flutter e Firebase"
-git branch -M main
-git remote add origin https://github.com/SEU_USUARIO/Yourvel.git
-git push -u origin main
-```
-
-O histórico deve refletir as alterações reais; não é necessário fabricar commits anteriores à implementação.
-
-Referências oficiais: [FlutterFire](https://firebase.google.com/docs/flutter/setup), [upload no Storage](https://firebase.google.com/docs/storage/flutter/upload-files), [funções callable](https://firebase.google.com/docs/functions/callable), [Open-Meteo Geocoding](https://open-meteo.com/en/docs/geocoding-api).
-
-Não versionar `config/firebase.json`, dados dos emuladores, tokens ou contas de serviço. A configuração pública do cliente não concede acesso por si só: as regras e a validação do backend são obrigatórias. A publicação em projeto Firebase real e no GitHub depende das contas e destinos do responsável pelo projeto.
+Busca de cidades: [Open-Meteo](https://open-meteo.com/en/docs/geocoding-api), dados GeoNames CC BY 4.0; serviço gratuito para uso não comercial. A busca retorna o centro da cidade. Não há edição de lembranças, múltiplas fotos ou sincronização de imagens entre aparelhos.

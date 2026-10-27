@@ -1,6 +1,4 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:cloud_functions/cloud_functions.dart';
-import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'features/auth/auth_repository.dart';
 import 'features/auth/auth_page.dart';
@@ -8,17 +6,9 @@ import 'features/travel/data/travel_repository.dart';
 import 'features/travel/presentation/diary_page.dart';
 
 class YourvelApp extends StatelessWidget {
-  const YourvelApp({
-    super.key,
-    this.auth,
-    this.database,
-    this.storage,
-    this.functions,
-  });
+  const YourvelApp({super.key, this.auth, this.database});
   final AuthRepository? auth;
   final FirebaseFirestore? database;
-  final FirebaseStorage? storage;
-  final FirebaseFunctions? functions;
 
   @override
   Widget build(BuildContext context) => MaterialApp(
@@ -64,12 +54,7 @@ class YourvelApp extends StatelessWidget {
                   : SessionNavigator(
                       key: ValueKey(user.uid),
                       auth: auth!,
-                      repository: TravelRepository(
-                        database!,
-                        storage!,
-                        functions!,
-                        user.uid,
-                      ),
+                      repository: TravelRepository(database!, user.uid),
                     );
             },
           ),
@@ -135,7 +120,7 @@ class SetupPage extends StatelessWidget {
               ),
               const SizedBox(height: 12),
               const Text(
-                'O aplicativo precisa das configurações do seu projeto Firebase para autenticar e guardar suas memórias. Siga o README e execute com --dart-define-from-file=config/firebase.json.',
+                'No Android, coloque google-services.json em android/app e execute novamente o aplicativo. Para usar uma configuração explícita, siga o README e execute com --dart-define-from-file=config/firebase.json.',
               ),
             ],
           ),

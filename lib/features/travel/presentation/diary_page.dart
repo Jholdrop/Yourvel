@@ -258,7 +258,7 @@ class _EntryImageState extends State<EntryImage> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Text('Foto indisponível'),
+                const Text('Foto indisponível neste dispositivo'),
                 TextButton(
                   onPressed: () => setState(
                     () => _image = widget.repository.image(widget.path),

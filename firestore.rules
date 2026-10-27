@@ -3,8 +3,30 @@ service cloud.firestore {
   match /databases/{database}/documents {
     match /users/{uid}/travel_entries/{entryId} {
       allow read: if request.auth != null && request.auth.uid == uid;
-      // Somente as funções autenticadas e validadas finalizam ou excluem registros.
-      allow write: if false;
+      function owner() {
+        return request.auth != null && request.auth.uid == uid;
+      }
+      function validEntry() {
+        let data = request.resource.data;
+        return data.keys().hasAll(['placeName', 'memory', 'imagePath',
+            'imageStorage', 'coordinates', 'locationSource', 'placeProvider', 'createdAt'])
+          && data.keys().hasOnly(['placeName', 'memory', 'imagePath',
+            'imageStorage', 'coordinates', 'locationSource', 'placeProvider', 'createdAt'])
+          && data.placeName is string && data.placeName.size() > 0 && data.placeName.size() <= 100
+          && data.memory is string && data.memory.size() > 0 && data.memory.size() <= 1000
+          && entryId.matches('^[a-zA-Z0-9_-]+$')
+          && data.imagePath == 'users/' + uid + '/travel_entries/' + entryId + '/photo'
+          && data.imageStorage == 'local'
+          && data.coordinates is latlng
+          && data.coordinates.latitude() >= -90 && data.coordinates.latitude() <= 90
+          && data.coordinates.longitude() >= -180 && data.coordinates.longitude() <= 180
+          && data.locationSource in ['places', 'device']
+          && data.placeProvider in ['open-meteo', 'device']
+          && data.createdAt == request.time;
+      }
+      allow create: if owner() && validEntry();
+      allow delete: if owner();
+      allow update: if false;
     }
   }
 }

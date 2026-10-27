@@ -1,0 +1,24 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Yourvel web (emuladores Firebase)",
+      "request": "launch",
+      "type": "dart",
+      "deviceId": "chrome",
+      "toolArgs": ["--web-port=7357", "--dart-define=USE_EMULATORS=true"]
+    },
+    {
+      "name": "Yourvel Android (emuladores Firebase)",
+      "request": "launch",
+      "type": "dart",
+      "toolArgs": ["--dart-define=USE_EMULATORS=true", "--dart-define=EMULATOR_HOST=10.0.2.2"]
+    },
+    {
+      "name": "Yourvel Android (Firebase real)",
+      "request": "launch",
+      "type": "dart",
+      "toolArgs": ["--dart-define-from-file=config/firebase.json"]
+    }
+  ]
+}

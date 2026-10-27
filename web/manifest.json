@@ -1,0 +1,19 @@
+{
+    "name": "Yourvel — Diário de viagens",
+    "short_name": "Yourvel",
+    "start_url": ".",
+    "display": "standalone",
+    "background_color": "#F7F5EF",
+    "theme_color": "#206453",
+    "description": "Guarde os lugares. Reviva suas histórias.",
+    "orientation": "portrait-primary",
+    "prefer_related_applications": false,
+    "icons": [
+        {
+            "src": "favicon.svg",
+            "sizes": "any",
+            "type": "image/svg+xml",
+            "purpose": "any maskable"
+        }
+    ]
+}

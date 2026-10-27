@@ -1,0 +1,16 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /users/{uid}/travel_entries/{entryId}/photo {
+      function owner() { return request.auth != null && request.auth.uid == uid; }
+      allow read: if owner();
+      allow create: if owner()
+        && resource == null
+        && request.resource.size > 0
+        && request.resource.size <= 5 * 1024 * 1024
+        && request.resource.contentType in ['image/jpeg', 'image/png'];
+      // Substituições, metadados e exclusões passam pelo backend autenticado.
+      allow update, delete: if false;
+    }
+  }
+}
